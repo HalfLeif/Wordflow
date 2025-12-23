@@ -1,5 +1,5 @@
 
-import { LevelData, PlacedWord } from '../types';
+import { LevelData, PlacedWord } from '../types.ts';
 
 export class WordEngine {
   private clusters: Map<string, string[]> = new Map();
@@ -24,10 +24,15 @@ export class WordEngine {
   constructor() {}
 
   async init(): Promise<void> {
+    console.info("📚 WordEngine: Starting initialization...");
     try {
+      console.log("📚 WordEngine: Fetching dictionary from remote source...");
       const response = await fetch('https://raw.githubusercontent.com/first20hours/google-10000-english/master/20k.txt');
-      if (!response.ok) throw new Error("Dictionary fetch failed");
+      if (!response.ok) throw new Error(`Dictionary fetch failed with status ${response.status}`);
+      
       const text = await response.text();
+      console.log(`📚 WordEngine: Received dictionary data (${Math.round(text.length / 1024)} KB)`);
+      
       const fetchedWords = text.split('\n')
         .map(w => w.trim().toLowerCase())
         .filter(w => {
@@ -40,6 +45,7 @@ export class WordEngine {
       const combined = [...new Set([...fetchedWords, ...this.PRIORITY_WORDS])];
       this.dictionary = combined;
       this.dictionarySet = new Set(this.dictionary);
+      console.info(`📚 WordEngine: Dictionary processed. ${this.dictionary.length} valid words found.`);
 
       this.clusters.clear();
       this.dictionary.forEach(word => {
@@ -47,7 +53,10 @@ export class WordEngine {
         if (!this.clusters.has(sorted)) this.clusters.set(sorted, []);
         this.clusters.get(sorted)!.push(word);
       });
+      console.info(`📚 WordEngine: Word clusters built. ${this.clusters.size} unique character combinations.`);
+
     } catch (error) {
+      console.error("❌ WordEngine: Init error, using fallback dictionary", error);
       const fallback = ["rust", "trust", "star", "stair", "trail", "train", "react", "trace", "cater", "crate", "great", "gear", "read", "dear", "care", "race", "word", "flow", "wolf", "blue", "glow", "slow", "fast", "lake", "peak", "beam", "team", "nigh", "lore", "bard", "sage"];
       this.dictionary = fallback;
       this.dictionarySet = new Set(fallback);
@@ -74,14 +83,17 @@ export class WordEngine {
   }
 
   generateLevel(targetLength: number = 6): LevelData {
+    console.log(`🏗️ WordEngine: Generating level for length ${targetLength}...`);
     let rootWords = this.dictionary.filter(w => w.length === targetLength);
     if (rootWords.length === 0) {
+      console.warn(`🏗️ WordEngine: No words of length ${targetLength} found. Falling back to 5.`);
       targetLength = 5;
       rootWords = this.dictionary.filter(w => w.length === targetLength);
     }
     
     const randomRoot = rootWords[Math.floor(Math.random() * rootWords.length)] || "water";
     const rootSorted = randomRoot.split('').sort().join('');
+    console.log(`🏗️ WordEngine: Root word selected: "${randomRoot}"`);
 
     let pool: string[] = [];
     for (const [sortedLetters, words] of this.clusters.entries()) {
@@ -89,6 +101,7 @@ export class WordEngine {
         pool.push(...words);
       }
     }
+    console.log(`🏗️ WordEngine: Found ${pool.length} candidate words for this root.`);
 
     const weightedPool = pool.map(word => ({
       word,
@@ -107,20 +120,14 @@ export class WordEngine {
         const key = `${curX},${curY}`;
 
         const existing = grid.get(key);
-        
-        // 1. Existing character check
         if (existing) {
           if (existing !== char) return false; 
-          
           const wordsAtCell = cellToWords.get(key) || [];
           if (wordsAtCell.length >= 2) return false; 
           if (curX !== intersectionX || curY !== intersectionY) return false;
         }
 
-        // 2. Adjacency check (Prevent glueing)
         const isIntersectionCell = (curX === intersectionX && curY === intersectionY);
-        
-        // Neighbors: orthogonal and tips
         const adjacents = [
           { x: curX - 1, y: curY, label: 'left' },
           { x: curX + 1, y: curY, label: 'right' },
@@ -131,15 +138,9 @@ export class WordEngine {
         for (const adj of adjacents) {
           const adjKey = `${adj.x},${adj.y}`;
           if (grid.has(adjKey)) {
-            // Check if this neighbor is actually part of the word we are already intersecting with
-            // OR if it's an allowed extension. In crosswords, any adjacent character must be 
-            // part of a word flowing into/out of the current cell (i.e., an intersection).
             const isWordFlow = (dir === 'horizontal' && (adj.label === 'left' || adj.label === 'right')) ||
                                (dir === 'vertical' && (adj.label === 'up' || adj.label === 'down'));
-            
             if (isWordFlow) {
-              // Tips check: if we're moving horizontally, we can't have horizontal neighbors 
-              // at the ends unless we are merging words (forbidden).
               if (i === 0 && adj.label === 'left') return false;
               if (i === word.length - 1 && adj.label === 'right') return false;
               if (dir === 'vertical') {
@@ -147,7 +148,6 @@ export class WordEngine {
                 if (i === word.length - 1 && adj.label === 'down') return false;
               }
             } else {
-              // Orthogonal neighbor: only allowed at the designated intersection point
               if (!isIntersectionCell) return false;
             }
           }
@@ -175,11 +175,9 @@ export class WordEngine {
     while (placed.length < 12 && attempts < weightedPool.length * 10) {
       const candidate = weightedPool[attempts % weightedPool.length];
       attempts++;
-      
       if (placed.some(p => p.word === candidate)) continue;
 
       let bestFit: { x: number, y: number, dir: 'horizontal' | 'vertical', ix: number, iy: number } | null = null;
-
       for (const p of placed) {
         for (let i = 0; i < p.word.length; i++) {
           for (let j = 0; j < candidate.length; j++) {
@@ -187,10 +185,8 @@ export class WordEngine {
               const dir: 'horizontal' | 'vertical' = p.direction === 'horizontal' ? 'vertical' : 'horizontal';
               const x = p.direction === 'horizontal' ? p.x + i : p.x - j;
               const y = p.direction === 'horizontal' ? p.y - j : p.y + i;
-              
               const ix = p.direction === 'horizontal' ? p.x + i : p.x;
               const iy = p.direction === 'horizontal' ? p.y : p.y + i;
-
               if (canPlace(candidate, x, y, dir, ix, iy)) {
                 bestFit = { x, y, dir, ix, iy };
                 break;
@@ -201,11 +197,10 @@ export class WordEngine {
         }
         if (bestFit) break;
       }
-
-      if (bestFit) {
-        place(candidate, bestFit.x, bestFit.y, bestFit.dir);
-      }
+      if (bestFit) place(candidate, bestFit.x, bestFit.y, bestFit.dir);
     }
+
+    console.log(`🏗️ WordEngine: Crossword layout built with ${placed.length} words.`);
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     placed.forEach(p => {

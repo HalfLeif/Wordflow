@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LevelData } from '../types';
+import { LevelData } from '../types.ts';
 
 interface CrosswordGridProps {
   level: LevelData;
@@ -10,12 +10,10 @@ interface CrosswordGridProps {
 const CrosswordGrid: React.FC<CrosswordGridProps> = ({ level, revealedIndices }) => {
   const { gridWidth, gridHeight, placedWords, foundWords } = level;
 
-  // Create a flattened map for easier rendering: [y][x]
   const cellMap: (string | null)[][] = Array.from({ length: gridHeight }, () => 
     Array.from({ length: gridWidth }, () => null)
   );
 
-  // Tracks if a cell is found or hinted
   const cellStatus: ('empty' | 'hidden' | 'found' | 'hinted')[][] = Array.from({ length: gridHeight }, () => 
     Array.from({ length: gridWidth }, () => 'empty')
   );
@@ -42,7 +40,6 @@ const CrosswordGrid: React.FC<CrosswordGridProps> = ({ level, revealedIndices })
     }
   });
 
-  // Calculate dynamic scaling
   const maxDim = Math.max(gridWidth, gridHeight);
   const cellSize = `min(${80 / maxDim}vw, ${320 / maxDim}px)`;
 

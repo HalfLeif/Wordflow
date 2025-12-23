@@ -6,10 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>WordFlow</title>
   
-  <!-- PWA & Mobile Tags -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#3b82f6">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="WordFlow">
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3771/3771261.png">
@@ -18,19 +17,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      overflow: hidden; /* Prevent bouncing on mobile */
+      overflow: hidden;
       background: #0f172a;
       height: 100vh;
       width: 100vw;
+      margin: 0;
     }
     .no-select {
       user-select: none;
       -webkit-user-select: none;
     }
-    /* Safe Area Padding for modern phones with notches */
     .safe-top { padding-top: env(safe-area-inset-top); }
     .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
@@ -41,18 +41,99 @@
     .animate-pop {
       animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
+
+    /* Debug Console Styling */
+    #debug-console {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 120px;
+      background: rgba(0, 0, 0, 0.85);
+      color: #00ff00;
+      font-family: monospace;
+      font-size: 10px;
+      padding: 5px;
+      overflow-y: auto;
+      z-index: 9999;
+      border-top: 1px solid #333;
+      pointer-events: none; /* Let clicks pass through unless we expand it */
+      opacity: 0.6;
+    }
+    #debug-console.expanded {
+      height: 50vh;
+      pointer-events: auto;
+      opacity: 1;
+    }
+    .log-entry { margin-bottom: 2px; border-bottom: 1px solid #222; }
+    .log-error { color: #ff5555; }
+    .log-info { color: #55aaff; }
   </style>
-<script type="importmap">
+
+  <script type="importmap">
 {
   "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3"
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-slate-900 text-slate-100">
   <div id="root"></div>
+  <div id="debug-console">
+    <div style="font-weight: bold; margin-bottom: 4px; border-bottom: 1px solid #444;">DEBUG CONSOLE (Tap to expand)</div>
+  </div>
+  
+  <script>
+    // Visible Debug Logger
+    const debugConsole = document.getElementById('debug-console');
+    debugConsole.addEventListener('click', () => debugConsole.classList.toggle('expanded'));
+
+    function logToScreen(msg, type = 'log') {
+      const div = document.createElement('div');
+      div.className = `log-entry log-${type}`;
+      const time = new Date().toLocaleTimeString().split(' ')[0];
+      div.textContent = `[${time}] ${msg}`;
+      debugConsole.appendChild(div);
+      debugConsole.scrollTop = debugConsole.scrollHeight;
+    }
+
+    // Capture browser logs
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalInfo = console.info;
+
+    console.log = (...args) => {
+      logToScreen(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'log');
+      originalLog.apply(console, args);
+    };
+    console.error = (...args) => {
+      logToScreen(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'error');
+      originalError.apply(console, args);
+    };
+    console.info = (...args) => {
+      logToScreen(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'info');
+      originalInfo.apply(console, args);
+    };
+
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      console.error(`GLOBAL ERROR: ${msg} at ${lineNo}:${columnNo}`);
+      return false;
+    };
+
+    window.onunhandledrejection = function(event) {
+      console.error(`PROMISE REJECTION: ${event.reason}`);
+    };
+
+    console.info("HTML: System ready, waiting for index.tsx...");
+  </script>
+
+  <script type="module" src="./index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>

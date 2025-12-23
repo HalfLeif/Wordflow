@@ -1,11 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { wordEngine } from './services/wordEngine';
-import { LevelData, GameState } from './types';
-import LetterWheel from './components/LetterWheel';
-import CrosswordGrid from './components/CrosswordGrid';
+import { wordEngine } from './services/wordEngine.ts';
+import { LevelData, GameState } from './types.ts';
+import LetterWheel from './components/LetterWheel.tsx';
+import CrosswordGrid from './components/CrosswordGrid.tsx';
 
 const App: React.FC = () => {
+  console.log("⚛️ App: Component function called (Render)");
+  
   const [gameState, setGameState] = useState<GameState>(GameState.LOADING);
   const [level, setLevel] = useState<LevelData | null>(null);
   const [currentGuess, setCurrentGuess] = useState("");
@@ -16,15 +18,27 @@ const App: React.FC = () => {
   const [revealedIndices, setRevealedIndices] = useState<Record<string, number[]>>({});
 
   useEffect(() => {
+    console.info("⚛️ App: Mounting (useEffect)");
     const initGame = async () => {
-      await wordEngine.init();
-      loadNewLevel(6);
+      console.info("🎮 App: Initializing WordEngine...");
+      try {
+        await wordEngine.init();
+        console.info("🎮 App: WordEngine initialized. Loading first level...");
+        loadNewLevel(6);
+      } catch (err) {
+        console.error("❌ App: Failed to initialize WordEngine:", err);
+      }
     };
     initGame();
   }, []);
 
   const loadNewLevel = (length: number) => {
+    console.info(`🎮 App: Generating new level with length: ${length}`);
     const nextLevelData = wordEngine.generateLevel(length);
+    console.info("🎮 App: Level generation complete", {
+      root: nextLevelData.rootLetters,
+      words: nextLevelData.validWords.length
+    });
     setLevel(nextLevelData);
     setRevealedIndices({});
     setGameState(GameState.PLAYING);
@@ -34,6 +48,7 @@ const App: React.FC = () => {
 
   const handleWordComplete = (word: string) => {
     if (!level || gameState !== GameState.PLAYING) return;
+    console.log(`🎯 App: User submitted word: "${word}"`);
 
     if (word.length < 4) {
       if (word.length > 0) showTemporaryMessage("Too short!");
@@ -46,6 +61,7 @@ const App: React.FC = () => {
     }
 
     if (level.validWords.includes(word)) {
+      console.info(`🎯 App: Correct guess! "${word}"`);
       const updatedFound = new Set(level.foundWords);
       updatedFound.add(word);
       
@@ -55,6 +71,7 @@ const App: React.FC = () => {
       showTemporaryMessage("Great!", true);
 
       if (updatedFound.size === level.validWords.length) {
+        console.info("🎉 App: Level complete!");
         setGameState(GameState.LEVEL_COMPLETE);
       }
     } else {
@@ -68,13 +85,11 @@ const App: React.FC = () => {
 
   const handleHelp = () => {
     if (!level || gameState !== GameState.PLAYING) return;
+    console.log("💡 App: Hint requested");
 
-    // Collect all unique grid coordinates that are part of a word but currently hidden
-    // A cell is visible if its word is in foundWords OR its coordinate is in revealedIndices for any word
     const hiddenCells: { x: number, y: number }[] = [];
-    
-    // First, map which cells are visible
     const visibleCoords = new Set<string>();
+    
     level.placedWords.forEach(pw => {
       const isFound = level.foundWords.has(pw.word);
       const hints = revealedIndices[pw.word] || [];
@@ -87,14 +102,12 @@ const App: React.FC = () => {
       }
     });
 
-    // Then, find all cells that are part of words but NOT visible
     level.placedWords.forEach(pw => {
       for (let i = 0; i < pw.word.length; i++) {
         const cx = pw.direction === 'horizontal' ? pw.x + i : pw.x;
         const cy = pw.direction === 'horizontal' ? pw.y : pw.y + i;
         const key = `${cx},${cy}`;
         if (!visibleCoords.has(key)) {
-          // Check if we already added this coord to hiddenCells
           if (!hiddenCells.some(c => c.x === cx && c.y === cy)) {
             hiddenCells.push({ x: cx, y: cy });
           }
@@ -104,10 +117,7 @@ const App: React.FC = () => {
 
     if (hiddenCells.length === 0) return;
 
-    // Pick a random hidden cell
     const target = hiddenCells[Math.floor(Math.random() * hiddenCells.length)];
-
-    // Update revealedIndices for ALL words that occupy this cell
     setRevealedIndices(prev => {
       const next = { ...prev };
       level.placedWords.forEach(pw => {
@@ -161,7 +171,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-slate-900 text-white overflow-hidden safe-top safe-bottom select-none">
-      {/* Header */}
       <div className="flex justify-between items-center px-4 py-3 border-b border-slate-800/50 shrink-0">
         <div className="flex flex-col">
           <h1 className="text-xl font-black tracking-tighter text-blue-400 leading-none">WORDFLOW</h1>
@@ -177,11 +186,9 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Crossword Grid Area */}
       <div className="flex-1 flex items-center justify-center p-4 overflow-hidden relative">
         {level && <CrosswordGrid level={level} revealedIndices={revealedIndices} />}
         
-        {/* Subtle persistent completion message */}
         {isLevelFinished && !message && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 animate-pop">
             <span className={`px-4 py-1.5 rounded-full text-xs font-black bg-blue-600 shadow-xl shadow-blue-900/40 text-white border border-blue-400 uppercase tracking-[0.2em]`}>
@@ -191,7 +198,6 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Guess Display */}
       <div className="h-14 flex flex-col items-center justify-center shrink-0">
         {!isLevelFinished ? (
           <div className={`text-2xl font-black tracking-[0.2em] uppercase transition-all duration-150 transform
@@ -201,14 +207,12 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="text-blue-400/50 text-xs font-black uppercase tracking-widest animate-pulse">
-            {isSkipped ? "SWIPE DOWN FOR NEXT" : "EXCELLENT WORK"}
+            {isSkipped ? "TAP BELOW FOR NEXT" : "EXCELLENT WORK"}
           </div>
         )}
       </div>
 
-      {/* Controls Area */}
       <div className="flex flex-col items-center pb-8 shrink-0 relative">
-        {/* Buttons Row */}
         {!isLevelFinished && (
           <div className="w-full max-w-[min(90vw,340px)] flex justify-between items-center mb-4 px-2">
             <button 
@@ -235,7 +239,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Dynamic Interaction Bottom Bar */}
         <div className="w-full max-w-[min(90vw,340px)] min-h-[280px] flex items-center justify-center">
           {isLevelFinished ? (
             <div className="w-full animate-pop flex flex-col items-center">
@@ -243,11 +246,8 @@ const App: React.FC = () => {
                 onClick={nextLevel}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[2rem] text-2xl shadow-2xl shadow-blue-500/30 transition-all active:scale-95 active:shadow-none uppercase tracking-tighter"
               >
-                Continue Level {levelNumber + (isSkipped ? 0 : 1)}
+                Continue
               </button>
-              <p className="mt-4 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
-                Tap to proceed
-              </p>
             </div>
           ) : (
             level && (
@@ -261,6 +261,9 @@ const App: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* Spacer for debug console */}
+      <div className="h-[120px] shrink-0 pointer-events-none opacity-0"></div>
     </div>
   );
 };

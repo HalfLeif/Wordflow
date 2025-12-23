@@ -14,11 +14,11 @@ const LetterWheel: React.FC<LetterWheelProps> = ({ letters, onWordComplete, curr
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-  // Update dimensions on mount and resize
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
         const { width, height } = containerRef.current.getBoundingClientRect();
+        console.log(`🎡 LetterWheel: Dimension update - ${Math.round(width)}x${Math.round(height)}`);
         setDimensions({ width, height });
       }
     };
@@ -29,10 +29,9 @@ const LetterWheel: React.FC<LetterWheelProps> = ({ letters, onWordComplete, curr
 
   const centerX = dimensions.width / 2;
   const centerY = dimensions.height / 2;
-  const letterRadius = dimensions.width * 0.32; // Responsive radius
-  const selectionThreshold = dimensions.width * 0.12; // Responsive threshold
+  const letterRadius = dimensions.width * 0.32;
+  const selectionThreshold = dimensions.width * 0.12;
 
-  // Calculate letter positions relative to center
   const letterPositions = useMemo(() => {
     if (dimensions.width === 0) return [];
     return letters.map((_, i) => {
@@ -55,6 +54,7 @@ const LetterWheel: React.FC<LetterWheelProps> = ({ letters, onWordComplete, curr
   };
 
   const handleStart = (index: number, clientX: number, clientY: number) => {
+    console.log(`🎡 LetterWheel: Interaction start with letter: ${letters[index]}`);
     setSelectedIndices([index]);
     setCurrentWord(letters[index]);
     updatePointerPosition(clientX, clientY);
@@ -74,13 +74,17 @@ const LetterWheel: React.FC<LetterWheelProps> = ({ letters, onWordComplete, curr
         if (!selectedIndices.includes(pos.index)) {
           setSelectedIndices(prev => {
             const next = [...prev, pos.index];
-            setCurrentWord(next.map(idx => letters[idx]).join(''));
+            const word = next.map(idx => letters[idx]).join('');
+            console.log(`🎡 LetterWheel: Added letter "${letters[pos.index]}". Current: "${word}"`);
+            setCurrentWord(word);
             return next;
           });
         } else if (selectedIndices.length > 1 && selectedIndices[selectedIndices.length - 2] === pos.index) {
           setSelectedIndices(prev => {
             const next = prev.slice(0, -1);
-            setCurrentWord(next.map(idx => letters[idx]).join(''));
+            const word = next.map(idx => letters[idx]).join('');
+            console.log(`🎡 LetterWheel: Backtracked. Current: "${word}"`);
+            setCurrentWord(word);
             return next;
           });
         }
@@ -90,6 +94,7 @@ const LetterWheel: React.FC<LetterWheelProps> = ({ letters, onWordComplete, curr
 
   const handleEnd = useCallback(() => {
     if (selectedIndices.length > 0) {
+      console.log(`🎡 LetterWheel: Interaction end. Final word: "${currentWord}"`);
       onWordComplete(currentWord.toLowerCase());
     }
     setSelectedIndices([]);
@@ -121,7 +126,6 @@ const LetterWheel: React.FC<LetterWheelProps> = ({ letters, onWordComplete, curr
     >
       <div className="absolute inset-0 rounded-full bg-slate-800/30 border-4 border-slate-700/50 shadow-inner"></div>
       
-      {/* Selection Path */}
       <svg className="absolute inset-0 pointer-events-none w-full h-full overflow-visible">
         <defs>
           <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -160,7 +164,6 @@ const LetterWheel: React.FC<LetterWheelProps> = ({ letters, onWordComplete, curr
         )}
       </svg>
 
-      {/* Letters */}
       {letterPositions.map((pos) => {
         const isSelected = selectedIndices.includes(pos.index);
         const isLast = selectedIndices[selectedIndices.length - 1] === pos.index;

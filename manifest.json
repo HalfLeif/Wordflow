@@ -1,0 +1,17 @@
+
+{
+  "short_name": "WordFlow",
+  "name": "WordFlow Puzzle",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3771/3771261.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#3b82f6",
+  "background_color": "#0f172a"
+}

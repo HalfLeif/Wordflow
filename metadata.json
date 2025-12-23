@@ -1,0 +1,5 @@
+{
+  "name": "WordFlow",
+  "description": "A minimal, ad-free word puzzle game similar to Wordscapes. Connect letters to discover hidden words in a beautiful, minimalist interface.",
+  "requestFramePermissions": []
+}

@@ -1,91 +1,54 @@
 
-import { WordCluster, LevelData } from '../types';
+import { LevelData, PlacedWord } from '../types';
 
-/**
- * WordEngine handles the dictionary processing and game logic.
- */
 export class WordEngine {
   private clusters: Map<string, string[]> = new Map();
   private dictionary: string[] = [];
   private dictionarySet: Set<string> = new Set();
 
-  // Words from literature and classic English that might be missed by modern frequency lists.
-  // Removed 3-letter words like 'ere', 'thy', etc.
   private readonly PRIORITY_WORDS = [
     'nigh', 'fain', 'yore', 'lore', 'bard', 'sage', 'vale', 'moor', 'vial', 
     'helm', 'rune', 'mead', 'thou', 'thee', 'quoth', 'wrought', 'blithe', 
     'stark', 'grim', 'vane', 'reed'
   ];
 
-  // Expanded blacklist to catch proper names, brands, technical terms, and fragments.
   private readonly BLACKLIST = new Set([
-    // Proper Names & Brands
     'fran', 'brad', 'greg', 'ebay', 'sony', 'dell', 'nike', 'levi', 'visa', 'ford', 
     'fiat', 'asda', 'audi', 'hugo', 'marc', 'jean', 'paul', 'ivan', 'karl', 'erik',
-    // Tech & Web jargon
     'http', 'html', 'www', 'com', 'org', 'blog', 'site', 'user', 'java', 'linux', 
     'unix', 'xml', 'json', 'wifi', 'apps', 'tech', 'data', 'file', 'link', 'code',
     'ipad', 'ipod', 'xbox', 'psn', 'bios', 'ping', 'pong', 'null', 'void',
-    // Time fragments
-    'july', 'june', 'sept', 'octo', 'nov', 'dec', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
-    // Random noise/acronyms often found in 20k lists
-    'vhs', 'dvd', 'usb', 'cpu', 'ram', 'pdf', 'mp3', 'url', 'api', 'sku', 'vat', 'gmt', 'pst',
-    'abc', 'xyz', 'qrs', 'tuv', 'pqr', 'mno'
+    'july', 'june', 'sept', 'octo', 'nov', 'dec', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'
   ]);
 
   constructor() {}
 
-  /**
-   * Fetches a common English word list and processes it into clusters.
-   */
   async init(): Promise<void> {
     try {
       const response = await fetch('https://raw.githubusercontent.com/first20hours/google-10000-english/master/20k.txt');
       if (!response.ok) throw new Error("Dictionary fetch failed");
-      
       const text = await response.text();
-      
       const fetchedWords = text.split('\n')
         .map(w => w.trim().toLowerCase())
         .filter(w => {
-          // Minimum length changed to 4
           const isCorrectLength = w.length >= 4 && w.length <= 7;
           const isAlpha = /^[a-z]+$/.test(w);
           const hasVowel = /[aeiouy]/.test(w);
-          const isBlacklisted = this.BLACKLIST.has(w);
-          
-          return isCorrectLength && isAlpha && hasVowel && !isBlacklisted;
+          return isCorrectLength && isAlpha && hasVowel && !this.BLACKLIST.has(w);
         });
 
-      // Merge priority words with fetched words
       const combined = [...new Set([...fetchedWords, ...this.PRIORITY_WORDS])];
-
-      // Populate dictionary and lookup set
       this.dictionary = combined;
       this.dictionarySet = new Set(this.dictionary);
 
-      // Re-build clusters for fast sub-anagram lookup
       this.clusters.clear();
       this.dictionary.forEach(word => {
         const sorted = word.split('').sort().join('');
-        if (!this.clusters.has(sorted)) {
-          this.clusters.set(sorted, []);
-        }
+        if (!this.clusters.has(sorted)) this.clusters.set(sorted, []);
         this.clusters.get(sorted)!.push(word);
       });
-      
-      console.log(`WordEngine: Loaded ${this.dictionary.length} high-quality words (4-7 letters).`);
     } catch (error) {
-      console.error("Failed to load dictionary, using robust fallback:", error);
-      // Enhanced fallback list (removed 3-letter words)
-      const fallback = [
-        "rust", "trust", "star", "rats", "arts", "stair", "trail", "train",
-        "react", "trace", "cater", "crate", "rate", "tear", "great", "gear", 
-        "read", "dear", "dare", "care", "race", "rice", "word", "flow", "wolf", 
-        "blue", "glow", "slow", "fast", "last", "past", "lake", "peak", "beam", 
-        "team", "meat", "tame", "mate", "late", "tale", "nigh", "lore", "bard", 
-        "sage", "vale", "moor"
-      ];
+      const fallback = ["rust", "trust", "star", "stair", "trail", "train", "react", "trace", "cater", "crate", "great", "gear", "read", "dear", "care", "race", "word", "flow", "wolf", "blue", "glow", "slow", "fast", "lake", "peak", "beam", "team", "nigh", "lore", "bard", "sage"];
       this.dictionary = fallback;
       this.dictionarySet = new Set(fallback);
       fallback.forEach(word => {
@@ -102,9 +65,7 @@ export class WordEngine {
 
   private isSubset(smallSorted: string, bigSorted: string): boolean {
     const counts: Record<string, number> = {};
-    for (const char of bigSorted) {
-      counts[char] = (counts[char] || 0) + 1;
-    }
+    for (const char of bigSorted) counts[char] = (counts[char] || 0) + 1;
     for (const char of smallSorted) {
       if (!counts[char] || counts[char] === 0) return false;
       counts[char]--;
@@ -112,12 +73,8 @@ export class WordEngine {
     return true;
   }
 
-  /**
-   * Generates a level by picking a 5-7 letter root and finding sub-anagrams.
-   */
   generateLevel(targetLength: number = 6): LevelData {
     let rootWords = this.dictionary.filter(w => w.length === targetLength);
-    
     if (rootWords.length === 0) {
       targetLength = 5;
       rootWords = this.dictionary.filter(w => w.length === targetLength);
@@ -126,39 +83,155 @@ export class WordEngine {
     const randomRoot = rootWords[Math.floor(Math.random() * rootWords.length)] || "water";
     const rootSorted = randomRoot.split('').sort().join('');
 
-    let allValid: string[] = [];
+    let pool: string[] = [];
     for (const [sortedLetters, words] of this.clusters.entries()) {
       if (this.isSubset(sortedLetters, rootSorted)) {
-        allValid.push(...words);
+        pool.push(...words);
       }
     }
 
-    let selectedWords: string[] = [];
-    const maxWords = 12;
+    const weightedPool = pool.map(word => ({
+      word,
+      score: Math.pow(Math.random(), 1 / word.length)
+    })).sort((a, b) => b.score - a.score).map(p => p.word);
 
-    if (allValid.length <= maxWords) {
-      selectedWords = allValid;
-    } else {
-      const scoredWords = allValid.map(word => ({
-        word,
-        score: Math.pow(Math.random(), 1 / word.length)
-      }));
-      scoredWords.sort((a, b) => b.score - a.score);
-      selectedWords = scoredWords.slice(0, maxWords).map(sw => sw.word);
+    const placed: PlacedWord[] = [];
+    const grid: Map<string, string> = new Map();
+    const cellToWords: Map<string, string[]> = new Map();
+
+    const canPlace = (word: string, x: number, y: number, dir: 'horizontal' | 'vertical', intersectionX: number, intersectionY: number): boolean => {
+      for (let i = 0; i < word.length; i++) {
+        const curX = dir === 'horizontal' ? x + i : x;
+        const curY = dir === 'horizontal' ? y : y + i;
+        const char = word[i];
+        const key = `${curX},${curY}`;
+
+        const existing = grid.get(key);
+        
+        // 1. Existing character check
+        if (existing) {
+          if (existing !== char) return false; 
+          
+          const wordsAtCell = cellToWords.get(key) || [];
+          if (wordsAtCell.length >= 2) return false; 
+          if (curX !== intersectionX || curY !== intersectionY) return false;
+        }
+
+        // 2. Adjacency check (Prevent glueing)
+        const isIntersectionCell = (curX === intersectionX && curY === intersectionY);
+        
+        // Neighbors: orthogonal and tips
+        const adjacents = [
+          { x: curX - 1, y: curY, label: 'left' },
+          { x: curX + 1, y: curY, label: 'right' },
+          { x: curX, y: curY - 1, label: 'up' },
+          { x: curX, y: curY + 1, label: 'down' }
+        ];
+
+        for (const adj of adjacents) {
+          const adjKey = `${adj.x},${adj.y}`;
+          if (grid.has(adjKey)) {
+            // Check if this neighbor is actually part of the word we are already intersecting with
+            // OR if it's an allowed extension. In crosswords, any adjacent character must be 
+            // part of a word flowing into/out of the current cell (i.e., an intersection).
+            const isWordFlow = (dir === 'horizontal' && (adj.label === 'left' || adj.label === 'right')) ||
+                               (dir === 'vertical' && (adj.label === 'up' || adj.label === 'down'));
+            
+            if (isWordFlow) {
+              // Tips check: if we're moving horizontally, we can't have horizontal neighbors 
+              // at the ends unless we are merging words (forbidden).
+              if (i === 0 && adj.label === 'left') return false;
+              if (i === word.length - 1 && adj.label === 'right') return false;
+              if (dir === 'vertical') {
+                if (i === 0 && adj.label === 'up') return false;
+                if (i === word.length - 1 && adj.label === 'down') return false;
+              }
+            } else {
+              // Orthogonal neighbor: only allowed at the designated intersection point
+              if (!isIntersectionCell) return false;
+            }
+          }
+        }
+      }
+      return true;
+    };
+
+    const place = (word: string, x: number, y: number, dir: 'horizontal' | 'vertical') => {
+      placed.push({ word, x, y, direction: dir });
+      for (let i = 0; i < word.length; i++) {
+        const curX = dir === 'horizontal' ? x + i : x;
+        const curY = dir === 'horizontal' ? y : y + i;
+        const key = `${curX},${curY}`;
+        grid.set(key, word[i]);
+        if (!cellToWords.has(key)) cellToWords.set(key, []);
+        cellToWords.get(key)!.push(word);
+      }
+    };
+
+    const firstWord = weightedPool.find(w => w.length === randomRoot.length) || weightedPool[0];
+    place(firstWord, 0, 0, 'horizontal');
+
+    let attempts = 0;
+    while (placed.length < 12 && attempts < weightedPool.length * 10) {
+      const candidate = weightedPool[attempts % weightedPool.length];
+      attempts++;
+      
+      if (placed.some(p => p.word === candidate)) continue;
+
+      let bestFit: { x: number, y: number, dir: 'horizontal' | 'vertical', ix: number, iy: number } | null = null;
+
+      for (const p of placed) {
+        for (let i = 0; i < p.word.length; i++) {
+          for (let j = 0; j < candidate.length; j++) {
+            if (p.word[i] === candidate[j]) {
+              const dir: 'horizontal' | 'vertical' = p.direction === 'horizontal' ? 'vertical' : 'horizontal';
+              const x = p.direction === 'horizontal' ? p.x + i : p.x - j;
+              const y = p.direction === 'horizontal' ? p.y - j : p.y + i;
+              
+              const ix = p.direction === 'horizontal' ? p.x + i : p.x;
+              const iy = p.direction === 'horizontal' ? p.y : p.y + i;
+
+              if (canPlace(candidate, x, y, dir, ix, iy)) {
+                bestFit = { x, y, dir, ix, iy };
+                break;
+              }
+            }
+          }
+          if (bestFit) break;
+        }
+        if (bestFit) break;
+      }
+
+      if (bestFit) {
+        place(candidate, bestFit.x, bestFit.y, bestFit.dir);
+      }
     }
 
-    selectedWords.sort((a, b) => a.length - b.length || a.localeCompare(b));
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    placed.forEach(p => {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      const endX = p.direction === 'horizontal' ? p.x + p.word.length - 1 : p.x;
+      const endY = p.direction === 'vertical' ? p.y + p.word.length - 1 : p.y;
+      maxX = Math.max(maxX, endX);
+      maxY = Math.max(maxY, endY);
+    });
 
-    const displayLetters = randomRoot.toUpperCase().split('');
-    for (let i = displayLetters.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [displayLetters[i], displayLetters[j]] = [displayLetters[j], displayLetters[i]];
-    }
+    const finalPlaced = placed.map(p => ({
+      ...p,
+      x: p.x - minX,
+      y: p.y - minY
+    }));
+
+    const displayLetters = randomRoot.toUpperCase().split('').sort(() => Math.random() - 0.5);
 
     return {
       rootLetters: rootSorted,
       displayLetters,
-      validWords: selectedWords,
+      validWords: finalPlaced.map(p => p.word),
+      placedWords: finalPlaced,
+      gridWidth: maxX - minX + 1,
+      gridHeight: maxY - minY + 1,
       foundWords: new Set<string>()
     };
   }

@@ -1,13 +1,18 @@
 
-export interface WordCluster {
-  sortedLetters: string;
-  words: string[];
+export interface PlacedWord {
+  word: string;
+  x: number;
+  y: number;
+  direction: 'horizontal' | 'vertical';
 }
 
 export interface LevelData {
-  rootLetters: string; // e.g. "ADEGL"
-  displayLetters: string[]; // randomized, e.g. ["G", "L", "A", "D", "E"]
-  validWords: string[]; // All words that can be formed
+  rootLetters: string;
+  displayLetters: string[];
+  validWords: string[];
+  placedWords: PlacedWord[];
+  gridWidth: number;
+  gridHeight: number;
   foundWords: Set<string>;
 }
 
